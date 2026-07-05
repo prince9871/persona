@@ -50,13 +50,14 @@ function saveConversations(convs: Conversation[]) {
 export function useChatStore() {
   const [convs, setConvs] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>("");
+  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
   const activeRef = useRef(activeId);
   const convsRef = useRef(convs);
+  const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => { activeRef.current = activeId; }, [activeId]);
   useEffect(() => { convsRef.current = convs; }, [convs]);
 
-  // Load persisted conversations after hydration (avoids SSR mismatch with localStorage)
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const loaded = loadConversations();
@@ -68,6 +69,23 @@ export function useChatStore() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const activeConversation = convs.find((c) => c.id === activeId) ?? null;
+
+  const isPending = useCallback(
+    (convId: string) => (convId ? pendingIds.has(convId) : false),
+    [pendingIds],
+  );
+
+  const startPending = useCallback((convId: string) => {
+    setPendingIds((prev) => new Set(prev).add(convId));
+  }, []);
+
+  const endPending = useCallback((convId: string) => {
+    setPendingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(convId);
+      return next;
+    });
+  }, []);
 
   const newConversation = useCallback((persona: "hitesh" | "piyush" = "hitesh") => {
     const id = generateId();
@@ -92,6 +110,16 @@ export function useChatStore() {
   }, []);
 
   const deleteConversation = useCallback((id: string) => {
+    setPendingIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    const timer = saveTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      saveTimersRef.current.delete(id);
+    }
     setConvs((prev) => {
       const next = prev.filter((c) => c.id !== id);
       if (activeRef.current === id) {
@@ -102,41 +130,37 @@ export function useChatStore() {
     });
   }, []);
 
-  const addMessage = useCallback((msg: Message, persona?: "hitesh" | "piyush") => {
-    let id = activeRef.current;
-    const currentConvs = convsRef.current;
-
-    if (!id || !currentConvs.find((c) => c.id === id)) {
-      id = generateId();
-      const conv: Conversation = {
-        id,
-        title: "New Chat",
-        messages: [msg],
-        persona: persona ?? "hitesh",
-        createdAt: Date.now(),
-      };
-      setActiveId(id);
-      setConvs((prev) => {
-        const next = [conv, ...prev];
-        saveConversations(next);
-        return next;
-      });
-      return;
-    }
-
+  const addMessageTo = useCallback((convId: string, msg: Message) => {
     setConvs((prev) => {
+      const exists = prev.some((c) => c.id === convId);
+      if (!exists) return prev;
+
       const updated = prev.map((c) => {
-        if (c.id !== id) return c;
+        if (c.id !== convId) return c;
         const nextMsg = [...c.messages, msg];
-        const title = c.messages.length === 0 && msg.role === "user"
-          ? generateTitle([msg])
-          : c.title;
+        const title =
+          c.messages.length === 0 && msg.role === "user"
+            ? generateTitle([msg])
+            : c.title;
         return { ...c, messages: nextMsg, title };
       });
+      convsRef.current = updated;
       saveConversations(updated);
       return updated;
     });
   }, []);
+
+  const ensureActiveConversation = useCallback(
+    (persona: "hitesh" | "piyush" = "hitesh") => {
+      const currentId = activeRef.current;
+      const currentConvs = convsRef.current;
+      if (currentId && currentConvs.some((c) => c.id === currentId)) {
+        return currentId;
+      }
+      return newConversation(persona);
+    },
+    [newConversation],
+  );
 
   const setConversationPersona = useCallback((id: string, persona: "hitesh" | "piyush") => {
     setConvs((prev) => {
@@ -148,32 +172,54 @@ export function useChatStore() {
     });
   }, []);
 
-  const updateLastAssistantContent = useCallback((content: string) => {
-    const id = activeRef.current;
-    if (!id) return;
-
+  const updateAssistantContent = useCallback((convId: string, content: string) => {
     setConvs((prev) => {
+      if (!prev.some((c) => c.id === convId)) return prev;
+
       const updated = prev.map((c) => {
-        if (c.id !== id) return c;
+        if (c.id !== convId) return c;
         const msgs = [...c.messages];
         const last = msgs[msgs.length - 1];
         if (!last || last.role !== "assistant") return c;
         msgs[msgs.length - 1] = { ...last, content };
         return { ...c, messages: msgs };
       });
+      convsRef.current = updated;
+
+      const existing = saveTimersRef.current.get(convId);
+      if (existing) clearTimeout(existing);
+      saveTimersRef.current.set(
+        convId,
+        setTimeout(() => saveConversations(updated), 400),
+      );
+
       return updated;
     });
+  }, []);
+
+  const flushConversationSave = useCallback(() => {
+    for (const timer of saveTimersRef.current.values()) {
+      clearTimeout(timer);
+    }
+    saveTimersRef.current.clear();
+    saveConversations(convsRef.current);
   }, []);
 
   return {
     conversations: convs,
     activeConversation,
     activeId,
+    pendingIds,
+    isPending,
+    startPending,
+    endPending,
     newConversation,
     selectConversation,
     deleteConversation,
-    addMessage,
-    updateLastAssistantContent,
+    addMessageTo,
+    ensureActiveConversation,
+    updateAssistantContent,
+    flushConversationSave,
     setConversationPersona,
   } as const;
 }

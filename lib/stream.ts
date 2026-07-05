@@ -36,17 +36,27 @@ export async function createStreamResponse({
   const encoder = new TextEncoder();
   const readable = new ReadableStream({
     async start(controller) {
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        if (content) {
-          controller.enqueue(encoder.encode(content));
+      try {
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content || "";
+          if (content) {
+            controller.enqueue(encoder.encode(content));
+          }
         }
+        controller.close();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "stream error";
+        controller.enqueue(encoder.encode(`\n\n> ⚠️ **Stream interrupted:** ${message}`));
+        controller.close();
       }
-      controller.close();
     },
   });
 
   return new Response(readable, {
-    headers: { "Content-Type": "text/plain" },
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-cache",
+    },
   });
 }

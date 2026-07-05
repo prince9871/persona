@@ -91,6 +91,7 @@ function Steam({ className, style }: { className?: string; style?: React.CSSProp
 function Sidebar({
   conversations,
   activeId,
+  pendingIds,
   onNew,
   onSelect,
   onDelete,
@@ -98,6 +99,7 @@ function Sidebar({
 }: {
   conversations: { id: string; title: string; createdAt: number; persona: "hitesh" | "piyush" }[];
   activeId: string | null;
+  pendingIds: Set<string>;
   onNew: () => void;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
@@ -154,7 +156,10 @@ function Sidebar({
               }}
             >
               <Avatar persona={conv.persona} size={20} ring={conv.id === activeId} />
-              <span className="truncate">{conv.title}</span>
+              <span className="truncate flex-1 text-left">{conv.title}</span>
+              {pendingIds.has(conv.id) && (
+                <TypingDots color={conv.persona === "hitesh" ? "#E8A33D" : "#7C9473"} />
+              )}
             </button>
             <button
               onClick={(e) => {
@@ -289,21 +294,26 @@ function PersonaToggle({
 export default function Home() {
   const store = useChatStore();
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showPuff, setShowPuff] = useState(false);
   const [focused, setFocused] = useState(false);
 
   const persona = store.activeConversation?.persona ?? "hitesh";
   const accent = persona === "hitesh" ? "#E8A33D" : "#7C9473";
+  const activePending = store.isPending(store.activeId);
+  const activeMessages = store.activeConversation?.messages ?? [];
+  const lastActiveMessage = activeMessages[activeMessages.length - 1];
+  const activeStreaming =
+    activePending && lastActiveMessage?.role === "assistant";
+  const activeWaiting =
+    activePending && lastActiveMessage?.role === "user";
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [store.activeConversation?.messages, loading]);
+  }, [store.activeConversation?.messages, activePending]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -323,34 +333,50 @@ export default function Home() {
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!input.trim() || loading) return;
+      if (!input.trim()) return;
+
+      const convId = store.ensureActiveConversation(persona);
+      if (store.isPending(convId)) return;
+
+      const chatPersona =
+        store.conversations.find((c) => c.id === convId)?.persona ?? persona;
+      const prevMsgs =
+        store.conversations.find((c) => c.id === convId)?.messages ?? [];
 
       const text = input.trim();
       setInput("");
-      setLoading(true);
       setShowPuff(true);
       setTimeout(() => setShowPuff(false), 500);
 
-      const prevMsgs = store.activeConversation?.messages ?? [];
       const allMsgs = [...prevMsgs, { role: "user" as const, content: text }];
+      store.addMessageTo(convId, { role: "user", content: text });
+      store.startPending(convId);
 
-      store.addMessage({ role: "user", content: text }, persona);
-
+      let assistantStarted = false;
       try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: allMsgs,
-            persona,
+            persona: chatPersona,
           }),
         });
 
-        const reader = res.body!.getReader();
+        if (!res.ok) {
+          const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(payload?.error ?? `Request failed (${res.status})`);
+        }
+
+        if (!res.body) {
+          throw new Error("Empty response from server");
+        }
+
+        const reader = res.body.getReader();
         const decoder = new TextDecoder();
 
-        store.addMessage({ role: "assistant", content: "" }, persona);
-        setStreaming(true);
+        store.addMessageTo(convId, { role: "assistant", content: "" });
+        assistantStarted = true;
 
         let accumulated = "";
         while (true) {
@@ -358,24 +384,25 @@ export default function Home() {
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
           accumulated += chunk;
-          store.updateLastAssistantContent(accumulated);
+          store.updateAssistantContent(convId, accumulated);
         }
-      } catch {
-        store.addMessage(
-          {
-            role: "assistant",
-            content: persona === "hitesh"
-              ? "Kadak jhatka: connection toot gaya. Ek baar phir try karo."
-              : "Connection chala gaya. Dobara try karo, main wait kar raha hoon.",
-          },
-          persona,
-        );
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "unknown error";
+        const errorText =
+          chatPersona === "hitesh"
+            ? `Kadak jhatka: ${reason}. Ek baar phir try karo.`
+            : `Connection issue: ${reason}. Dobara try karo, main wait kar raha hoon.`;
+        if (assistantStarted) {
+          store.updateAssistantContent(convId, errorText);
+        } else {
+          store.addMessageTo(convId, { role: "assistant", content: errorText });
+        }
       } finally {
-        setLoading(false);
-        setStreaming(false);
+        store.flushConversationSave();
+        store.endPending(convId);
       }
     },
-    [input, loading, store, persona],
+    [input, store, persona],
   );
 
   return (
@@ -503,6 +530,7 @@ export default function Home() {
         <Sidebar
           conversations={store.conversations}
           activeId={store.activeId}
+          pendingIds={store.pendingIds}
           onNew={() => store.newConversation(persona)}
           onSelect={(id) => store.selectConversation(id)}
           onDelete={(id) => store.deleteConversation(id)}
@@ -563,13 +591,17 @@ export default function Home() {
               {store.activeConversation?.title || "Chai aur Code"}
             </h1>
             <p className="text-[11px]" style={{ color: accent }}>
-              {loading ? "typing..." : "online"}
+              {activePending ? "typing..." : "online"}
             </p>
           </div>
           <PersonaToggle
             persona={persona}
             onChange={(p) => {
-              if (store.activeId) {
+              if (p === persona) return;
+              const hasMessages = (store.activeConversation?.messages.length ?? 0) > 0;
+              if (hasMessages) {
+                store.newConversation(p);
+              } else if (store.activeId) {
                 store.setConversationPersona(store.activeId, p);
               } else {
                 store.newConversation(p);
@@ -591,8 +623,8 @@ export default function Home() {
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-4 py-6 space-y-2">
+        <div className="flex-1 overflow-y-auto" style={{ scrollBehavior: "smooth", overflowAnchor: "auto" }}>
+          <div className="mx-auto max-w-3xl px-4 py-6">
             {!store.activeConversation || store.activeConversation.messages.length === 0 ? (
               <div className="flex flex-col items-center text-center mt-20 gap-4">
                 <Avatar persona={persona} size={64} breathing />
@@ -640,12 +672,22 @@ export default function Home() {
               store.activeConversation.messages.map((msg, i) => {
                 const isUser = msg.role === "user";
                 const isLast = i === store.activeConversation!.messages.length - 1;
-                const isLiveAssistant = !isUser && isLast && streaming;
+                const isLiveAssistant = !isUser && isLast && activeStreaming;
+                const prev = i > 0 ? store.activeConversation!.messages[i - 1] : null;
+                const sameSender = prev && prev.role === msg.role;
                 return (
-                  <div key={i} className={`flex items-end gap-2 msg-in ${isUser ? "justify-end" : "justify-start"}`}>
-                    {!isUser && <Avatar persona={persona} size={28} ring={false} />}
+                  <div
+                    key={i}
+                    className={`flex items-end gap-2 msg-in ${isUser ? "justify-end" : "justify-start"}`}
+                    style={{ marginTop: sameSender ? 4 : 10 }}
+                  >
+                    {!isUser && (
+                      <div className="shrink-0" style={{ visibility: sameSender ? "hidden" : "visible" }}>
+                        <Avatar persona={persona} size={28} ring={false} />
+                      </div>
+                    )}
                     <div
-                      className="bubble-hover max-w-[85%] sm:max-w-[75%] whitespace-pre-wrap px-4 py-2.5 text-sm leading-relaxed shadow-sm"
+                      className={`${isUser ? "" : "prose-sm"} max-w-[85%] sm:max-w-[75%] px-4 py-2.5 text-sm leading-relaxed shadow-sm`}
                       style={{
                         background: isUser ? "#E8A33D" : "#2A1B14",
                         color: isUser ? "#1B120E" : "#F0E4D3",
@@ -672,7 +714,7 @@ export default function Home() {
               })
             )}
 
-            {loading && store.activeConversation?.messages[store.activeConversation.messages.length - 1]?.role === "user" && !streaming && (
+            {activeWaiting && (
               <div className="flex items-end gap-2 justify-start msg-in">
                 <Avatar persona={persona} size={28} ring={false} />
                 <div
@@ -729,11 +771,11 @@ export default function Home() {
                     handleSubmit(e);
                   }
                 }}
-                disabled={loading}
+                disabled={activePending}
               />
               <button
                 type="submit"
-                disabled={loading || !input.trim()}
+                disabled={activePending || !input.trim()}
                 className="send-btn relative rounded-lg p-2 shrink-0 disabled:opacity-30 transition-opacity cursor-pointer"
                 style={{ background: accent, color: "#1B120E" }}
               >

@@ -74,7 +74,8 @@ npm run dev
 2. **Collected distinctive phrases** and speech patterns verbatim
 3. **Identified personality markers:** humor style, encouragement patterns, catchphrases, teaching philosophy
 4. **Structured prompt by sections:** identity, expertise, voice, teaching approach, formatting, boundaries
-5. **Tested and iterated** on prompt temperature (0.7-0.8) and phrasing until responses felt authentic
+5. **Curated keyword knowledge snippets** in `lib/persona-knowledge.ts` from public videos, talks, and websites — retrieved per message to ground responses without fine-tuning
+6. **Tested and iterated** on prompt temperature (0.7-0.8) and phrasing until responses felt authentic
 
 ---
 
@@ -108,24 +109,24 @@ Without these prompts, the same model outputs generic textbook definitions. The 
 
 ## Context Management Approach
 
-**Strategy: full history + per-turn conversation hints**
+**Strategy: sliding window + summarization + per-turn hints + keyword persona retrieval**
 
-- Every request sends the complete message array to the API
-- The API prepends the persona system prompt plus a **dynamic hint** (`lib/conversation-hint.ts`) built from the live thread:
-  - Detects casual small talk vs technical questions
-  - Tracks phrases already used (chai mentions, doubt pitches, repeated openers)
-  - Instructs the model to answer the user's *last message* specifically and avoid template loops
-- Streaming response is accumulated on the client and displayed in real-time
+- Full chat history is stored client-side in `localStorage` (persisted after streaming completes)
+- Before each LLM call, `lib/context-window.ts` prepares messages:
+  - **≤16 messages:** send full history
+  - **17–50 messages:** sliding window keeps the most recent 16 messages
+  - **50+ messages:** older turns are summarized into a compact bullet-point recap; recent 16 messages stay verbatim
+  - Hard token budget (~8k tokens) trims from the oldest side if still over limit
+- `lib/persona-knowledge.ts` injects topic-matched teaching notes (from curated public-content research) into the system prompt based on the user's latest message — lightweight retrieval without a vector DB
+- `lib/conversation-hint.ts` adds per-turn rules: casual vs technical detection, phrase repetition guard, answer-the-last-message focus
+- Streaming responses are debounce-saved during generation and flushed to `localStorage` when complete
 - `frequency_penalty` / `presence_penalty` reduce repetitive phrasing across turns
 
 **Why this works:**
-- Full history preserves persona and topic continuity
-- Per-turn hints stop the model from re-welcoming or re-pitching every reply
-- Penalties discourage "koi doubt hai?" appearing in every message
-
-**Future improvements:**
-- Sliding window when approaching token limits
-- Optional summarization for very long threads (50+ turns)
+- Long threads stay within context limits without losing the current topic
+- Summarization preserves earlier decisions and explanations for 50+ turn chats
+- Keyword retrieval grounds answers in each creator's real teaching style
+- Per-turn hints stop template loops like re-welcoming or re-pitching every reply
 
 ---
 
@@ -162,7 +163,7 @@ Samajhna hai to kuch code likh ke dekho, tabhi pakka hoga. Documentation padhne 
 
 **User:** Explain RAG architecture
 
-**Piyush:** Hey everyone! RAG — Retrieval Augmented Generation. Bahut log bolte hain but surprisingly, bahut kam log actually understand karte hain ki under the hood kya ho raha hai.
+**Piyush:** RAG — Retrieval Augmented Generation. Bahut log bolte hain but surprisingly, bahut kam log actually understand karte hain ki under the hood kya ho raha hai.
 
 Simple flow:
 
@@ -239,11 +240,14 @@ app/
   layout.tsx           — Root layout with fonts
   page.tsx             — Main chat UI with persona switching
 lib/
-  chat-store.ts        — Conversation state + localStorage persistence
-  markdown.tsx         — Custom markdown renderer (code blocks, inline, headings)
-  openai.ts            — OpenAI-compatible NVIDIA NIM client
-  prompts.ts           — System prompts for both personas
-  stream.ts            — Streaming response handler
+  chat-store.ts           — Conversation state + localStorage persistence
+  context-window.ts       — Sliding window, token budget, long-thread summarization
+  conversation-hint.ts    — Per-turn dynamic hints (casual vs technical, anti-repetition)
+  markdown.tsx            — Custom markdown renderer (code blocks, inline, headings)
+  openai.ts               — OpenAI-compatible NVIDIA NIM client
+  persona-knowledge.ts    — Keyword-based persona snippet retrieval
+  prompts.ts              — System prompts for both personas
+  stream.ts               — Streaming response handler
 ```
 
 ---

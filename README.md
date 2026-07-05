@@ -259,15 +259,3 @@ vercel --prod    # deploy
 
 Ensure `NVIDIA_API_KEY` is set in Vercel environment variables.
 
----
-
-## Evaluation Notes
-
-This project was built against these criteria:
-
-| Criteria | Marks | Status |
-|----------|-------|--------|
-| Persona Accuracy | 30 | ✅ Both personas with authentic voice |
-| Conversation Quality | 25 | ✅ Context-aware, streaming, coherent |
-| Technical Implementation | 25 | ✅ Clean architecture, proper LLM integration |
-| User Experience | 20 | ✅ Intuitive UI, persona switching, themed design |

@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 export type Message = {
   role: "user" | "assistant";
   content: string;
+  persona?: "hitesh" | "piyush";
 };
 
 export type Conversation = {
@@ -33,7 +34,14 @@ function loadConversations(): Conversation[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as Conversation[];
+    const parsed = JSON.parse(raw) as Conversation[];
+    // Clean empty assistant messages that could be left from interrupted streams
+    return parsed.map((c) => ({
+      ...c,
+      messages: c.messages.filter(
+        (m) => m.role !== "assistant" || m.content.trim().length > 0,
+      ),
+    }));
   } catch {
     return [];
   }
@@ -54,6 +62,7 @@ export function useChatStore() {
   const activeRef = useRef(activeId);
   const convsRef = useRef(convs);
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const abortControllersRef = useRef<Map<string, AbortController>>(new Map());
 
   useEffect(() => { activeRef.current = activeId; }, [activeId]);
   useEffect(() => { convsRef.current = convs; }, [convs]);
@@ -87,7 +96,37 @@ export function useChatStore() {
     });
   }, []);
 
+  const getAbortSignal = useCallback((convId: string): AbortSignal => {
+    let controller = abortControllersRef.current.get(convId);
+    if (!controller) {
+      controller = new AbortController();
+      abortControllersRef.current.set(convId, controller);
+    }
+    return controller.signal;
+  }, []);
+
+  const abortRequest = useCallback((convId: string) => {
+    const controller = abortControllersRef.current.get(convId);
+    if (controller) {
+      controller.abort();
+      abortControllersRef.current.delete(convId);
+    }
+  }, []);
+
+  const getConversationSnapshot = useCallback((convId: string): Conversation | undefined => {
+    return convsRef.current.find((c) => c.id === convId);
+  }, []);
+
   const newConversation = useCallback((persona: "hitesh" | "piyush" = "hitesh") => {
+    // Reuse existing empty chat for this persona instead of creating a new one
+    const existingEmpty = convsRef.current.find(
+      (c) => c.persona === persona && c.messages.length === 0,
+    );
+    if (existingEmpty) {
+      setActiveId(existingEmpty.id);
+      return existingEmpty.id;
+    }
+
     const id = generateId();
     const conv: Conversation = {
       id,
@@ -110,6 +149,7 @@ export function useChatStore() {
   }, []);
 
   const deleteConversation = useCallback((id: string) => {
+    abortRequest(id);
     setPendingIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
@@ -128,7 +168,7 @@ export function useChatStore() {
       saveConversations(next);
       return next;
     });
-  }, []);
+  }, [abortRequest]);
 
   const addMessageTo = useCallback((convId: string, msg: Message) => {
     setConvs((prev) => {
@@ -205,6 +245,20 @@ export function useChatStore() {
     saveConversations(convsRef.current);
   }, []);
 
+  const truncateConversation = useCallback((convId: string, keepCount: number) => {
+    setConvs((prev) => {
+      const updated = prev.map((c) => {
+        if (c.id !== convId) return c;
+        const truncated = c.messages.slice(0, keepCount);
+        const title = truncated.length === 0 ? "New Chat" : c.title;
+        return { ...c, messages: truncated, title };
+      });
+      convsRef.current = updated;
+      saveConversations(updated);
+      return updated;
+    });
+  }, []);
+
   return {
     conversations: convs,
     activeConversation,
@@ -213,6 +267,9 @@ export function useChatStore() {
     isPending,
     startPending,
     endPending,
+    getAbortSignal,
+    abortRequest,
+    getConversationSnapshot,
     newConversation,
     selectConversation,
     deleteConversation,
@@ -221,5 +278,6 @@ export function useChatStore() {
     updateAssistantContent,
     flushConversationSave,
     setConversationPersona,
+    truncateConversation,
   } as const;
 }

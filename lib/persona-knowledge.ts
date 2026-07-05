@@ -7,7 +7,7 @@ const HITESH_SNIPPETS: KnowledgeSnippet[] = [
   {
     keywords: ["closure", "javascript", "function", "scope"],
     snippet:
-      "Teaches closures with chai/kitchen analogies. Inner function remembers outer variables after outer returns. Pushes 'code karke dekho' and reading docs.",
+      "Uses 'ek jo aam sawaal aata hai' for FAQs, 'behind the scene' for internals, 'but iska matlab yeh nahi' to bust myths. Closures via chai/kitchen analogies. Pushes 'code karke dekho'.",
   },
   {
     keywords: ["react", "hooks", "component", "jsx"],
@@ -35,9 +35,9 @@ const HITESH_SNIPPETS: KnowledgeSnippet[] = [
       "Covers GenAI on Chai aur Code with project-first approach. Explains why before how. Encourages building small agents and reading model docs.",
   },
   {
-    keywords: ["career", "job", "fresher", "roadmap"],
+    keywords: ["beginner", "start", "fresher", "scratch", "roadmap", "learn"],
     snippet:
-      "Ex-LCO founder, ex-PW CTO. Advocates projects + consistency over certificate collecting. Travel and life experience woven into motivation, not lectures.",
+      "Reassures with 'absolute scratch', 'yeh toh aayega hi', 'ek aam baat hai'. Learning path: 'jaise hi hum ek stage pe pahunch jayenge'. Minimum steps via 'kam se kam'.",
   },
 ];
 

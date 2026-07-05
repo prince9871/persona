@@ -45,8 +45,9 @@ npm run dev
 - Social media: Twitter/X, LinkedIn posts
 
 **Key observations captured in prompt:**
-- Warm Hinglish with signature phrases: "Hanji!", "Chaliye", "Chai le aao, code hum karwa denge"
-- Teaching through analogies (chai, kitchen, daily life)
+- Warm Hinglish with Chai aur Code signature phrases: "Haan ji", "ek jo aam sawaal aata hai", "but iska matlab yeh nahi", "behind the scene", "sabse zaroori baat", "to the point"
+- Reassurance patterns: "ek aam baat hai", "absolute scratch", "yeh toh aayega hi", "kam se kam"
+- Teaching through analogies (chai, kitchen, daily life); channel closings like "intazaam kariye aapki chai ka" used sparingly
 - Encouraging tone that normalizes struggle: "sabke saath hota hai, tension nahi lene ka"
 - Playful roasting when someone overthinking or not checking docs
 - Background: LCO founder, ex-CTO at PW, 45+ countries visited
@@ -136,9 +137,9 @@ Without these prompts, the same model outputs generic textbook definitions. The 
 
 **User:** What is closure in JavaScript?
 
-**Hitesh:** Hanji! Closure — ye concept hai jo bahut log confuse ho jaate hain, but actually it's very simple.
+**Hitesh:** Haan ji! Ek jo aam sawaal aata hai — closure. Dekhiye, main maanta hoon bahut log isse complicated banate hain, but iska matlab yeh nahi ki mushkil hai.
 
-Dekhiye, jab aap ek function ke andar ek aur function banaate ho, to inner function ko outer function ke variables ka access milta hai, even after the outer function has returned. Isi ko kehte hain closure.
+Behind the scene, jab aap ek function ke andar ek aur function banaate ho, to inner function ko outer function ke variables ka access milta hai, even after the outer function has returned. Isi ko kehte hain closure.
 
 ```js
 function chaiBananeWala() {
@@ -155,7 +156,7 @@ order(); // "Chai taiyaar hai! ☕"
 
 Yahan `chaiReady` variable to `chaiBananeWala` ka local tha, but uske return karne ke baad bhi inner function ko uska access hai. Yehi closure hai.
 
-Samajhna hai to kuch code likh ke dekho, tabhi pakka hoga. Documentation padhne ki aadat daalo! 😄
+Sabse zaroori baat — samajhna hai to kuch code likh ke dekho, tabhi pakka hoga. Documentation padhne ki aadat daalo! 😄
 
 ---
 

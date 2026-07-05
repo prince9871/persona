@@ -8,6 +8,22 @@ const MAX_MESSAGE_TOKENS = 8000;
 const RECENT_MESSAGE_COUNT = 16;
 const SUMMARIZE_AFTER_COUNT = 50;
 
+// Simple content hash for caching summaries — avoids re-summarizing the same
+// older messages on every reply in a long thread.
+const summaryCache = new Map<string, { summary: string; ts: number }>();
+const SUMMARY_CACHE_TTL = 120_000; // 2 minutes
+
+function contentHash(messages: ChatMessage[]): string {
+  let h = 0;
+  for (const m of messages) {
+    for (let i = 0; i < m.content.length; i++) {
+      h = ((h << 5) - h + m.content.charCodeAt(i)) | 0;
+    }
+    h = ((h << 5) - h + m.role.charCodeAt(0)) | 0;
+  }
+  return h.toString(36);
+}
+
 function estimateTokens(messages: ChatMessage[]): number {
   const chars = messages.reduce((n, m) => n + m.content.length + 16, 0);
   return Math.ceil(chars / CHARS_PER_TOKEN);
@@ -20,6 +36,12 @@ function formatForSummary(messages: ChatMessage[]): string {
 }
 
 async function summarizeOlderMessages(messages: ChatMessage[]): Promise<string> {
+  const hash = contentHash(messages);
+  const cached = summaryCache.get(hash);
+  if (cached && Date.now() - cached.ts < SUMMARY_CACHE_TTL) {
+    return cached.summary;
+  }
+
   const text = formatForSummary(messages);
   const truncated = text.length > 12000 ? text.slice(-12000) : text;
 
@@ -37,10 +59,21 @@ async function summarizeOlderMessages(messages: ChatMessage[]): Promise<string> 
     ],
   });
 
-  return (
+  const summary =
     completion.choices[0]?.message?.content?.trim() ??
-    "Earlier topics were discussed in this thread."
-  );
+    "Earlier topics were discussed in this thread.";
+
+  summaryCache.set(hash, { summary, ts: Date.now() });
+
+  // Evict stale entries periodically
+  if (summaryCache.size > 50) {
+    const now = Date.now();
+    for (const [key, val] of summaryCache) {
+      if (now - val.ts > SUMMARY_CACHE_TTL) summaryCache.delete(key);
+    }
+  }
+
+  return summary;
 }
 
 export async function prepareMessagesForContext(

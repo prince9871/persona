@@ -15,9 +15,13 @@ function assistantPhrasesUsed(messages: ChatMessage[]): string[] {
   const patterns = [
     { label: "chai mention", re: /chai/i },
     { label: "doubt/project pitch", re: /doubt|project.*(banana|start)|kya.*seekh/i },
-    { label: "Hanji opener", re: /^hanji/i },
+    { label: "Haan ji opener", re: /^haan?\s*ji/i },
     { label: "Hey everyone opener", re: /^hey everyone/i },
     { label: "swagat hai", re: /swagat hai/i },
+    { label: "sabse zaroori baat", re: /sabse zaroori baat/i },
+    { label: "iska matlab yeh nahi", re: /iska matlab yeh nahi/i },
+    { label: "bane rahiye", re: /bane rahiye/i },
+    { label: "chai closing", re: /intazaam kariye aapki chai/i },
   ];
   for (const msg of messages) {
     if (msg.role !== "assistant") continue;

@@ -1,10 +1,74 @@
-import { useState, Fragment } from "react";
+import { useState } from "react";
+
+const SYNTAX_COLORS: Record<string, Record<string, string>> = {
+  js: {
+    keyword: "#c678dd",
+    string: "#98c379",
+    number: "#d19a66",
+    builtin: "#e5c07b",
+    comment: "#5c6370",
+    operator: "#56b6c2",
+    func: "#61afef",
+    variable: "#e06c75",
+  },
+  jsx: {
+    keyword: "#c678dd",
+    string: "#98c379",
+    number: "#d19a66",
+    builtin: "#e5c07b",
+    comment: "#5c6370",
+    operator: "#56b6c2",
+    func: "#61afef",
+    tag: "#e06c75",
+    attr: "#d19a66",
+  },
+  ts: {
+    keyword: "#c678dd",
+    string: "#98c379",
+    number: "#d19a66",
+    builtin: "#e5c07b",
+    comment: "#5c6370",
+    operator: "#56b6c2",
+    func: "#61afef",
+    type: "#e5c07b",
+  },
+  python: {
+    keyword: "#c678dd",
+    string: "#98c379",
+    number: "#d19a66",
+    builtin: "#e5c07b",
+    comment: "#5c6370",
+    decorator: "#61afef",
+    operator: "#56b6c2",
+  },
+  bash: {
+    keyword: "#c678dd",
+    string: "#98c379",
+    comment: "#5c6370",
+    builtin: "#e5c07b",
+  },
+  json: {
+    key: "#e06c75",
+    string: "#98c379",
+    number: "#d19a66",
+    boolean: "#56b6c2",
+    null: "#c678dd",
+  },
+  css: {
+    property: "#61afef",
+    value: "#98c379",
+    selector: "#e06c75",
+    keyword: "#c678dd",
+    unit: "#d19a66",
+    comment: "#5c6370",
+  },
+};
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      className="absolute top-2 right-2 px-2 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+      className="absolute top-2 right-2 px-2 py-1 text-xs rounded opacity-0 group-hover:opacity-100 transition-all cursor-pointer hover:scale-105"
       style={{ background: "#4A3728", color: "#B8A38C" }}
       onClick={() => {
         navigator.clipboard.writeText(text);
@@ -19,21 +83,105 @@ function CopyButton({ text }: { text: string }) {
 
 function CodeBlock({ language, code }: { language?: string; code: string }) {
   const lines = code.split("\n");
+  const lang = language || "";
+  const colors = SYNTAX_COLORS[lang] || null;
+  const lineCount = lines.length;
+
   return (
-    <div className="group relative my-3 rounded-lg overflow-hidden" style={{ background: "#1A0F0A" }}>
+    <div className="group relative my-3 rounded-xl overflow-hidden" style={{ background: "#0f0a08", boxShadow: "0 4px 16px rgba(0,0,0,0.3)" }}>
       <div
-        className="flex items-center justify-between px-4 py-1.5 text-xs font-mono"
-        style={{ background: "#2A1B14", color: "#8C7A64", borderBottom: "1px solid #3A2A1E" }}
+        className="flex items-center justify-between px-4 py-1.5 text-xs font-mono select-none"
+        style={{ background: "#1a120e", color: "#8C7A64", borderBottom: "1px solid #3A2A1E" }}
       >
-        <span>{language || "code"}</span>
-        {lines.length > 1 && <span>{lines.length} lines</span>}
+        <div className="flex items-center gap-2">
+          <span className="flex gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#e06c75" }} />
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#e5c07b" }} />
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#98c379" }} />
+          </span>
+          <span style={{ color: "#5c6370" }}>{lang || "code"}</span>
+        </div>
+        {lineCount > 1 && (
+          <span style={{ color: "#5c6370" }}>{lineCount} lines</span>
+        )}
       </div>
       <CopyButton text={code} />
       <pre className="p-4 overflow-x-auto text-sm leading-relaxed" style={{ color: "#E8D5C0" }}>
-        <code>{code}</code>
+        {colors ? (
+          <code>{highlightCode(code, lang, colors)}</code>
+        ) : (
+          <code>{code}</code>
+        )}
       </pre>
     </div>
   );
+}
+
+function highlightCode(code: string, lang: string, colors: Record<string, string>): React.ReactNode {
+  const lines = code.split("\n");
+  return lines.map((line, i) => (
+    <div key={i} className="flex">
+      <span
+        className="select-none text-right pr-4 shrink-0"
+        style={{ color: "#4a3728", minWidth: "2.5ch" }}
+      >
+        {i + 1}
+      </span>
+      <span className="flex-1">
+        <HighlightLine line={line} lang={lang} colors={colors} />
+      </span>
+      {i < lines.length - 1 && "\n"}
+    </div>
+  ));
+}
+
+const HIGHLIGHT_PATTERNS: Record<string, RegExp[]> = {
+  keyword: [
+    /\b(const|let|var|function|return|if|else|for|while|do|switch|case|break|continue|import|export|from|default|async|await|yield|throw|try|catch|finally|new|class|extends|super|this|typeof|instanceof|void|delete|in|of|class|implements|interface|enum|type|declare|module|namespace|abstract|private|protected|public|static|readonly|as|any|boolean|number|string|null|undefined|never|unknown|symbol|bigint)\b/g,
+  ],
+  string: [/(["'`])(?:(?!\1|\\).|\\.)*\1/g],
+  number: [/\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g],
+  comment: [/(\/\/.*$)|(\/\*[\s\S]*?\*\/)/gm],
+  builtin: [/\b(console|Math|JSON|Promise|Array|Object|String|Number|Boolean|Map|Set|Symbol|RegExp|Error|Date|parseInt|parseFloat|setTimeout|setInterval|fetch|require|process|Buffer|__dirname|__filename|module|exports|Reflect|Proxy|WeakMap|WeakSet)\b/g],
+};
+
+function HighlightLine({ line, colors }: { line: string; lang: string; colors: Record<string, string> }) {
+  const tokens: React.ReactNode[] = [];
+  const patterns = HIGHLIGHT_PATTERNS;
+  let lastIdx = 0;
+
+  const matches: { start: number; end: number; color: string }[] = [];
+
+  for (const [type, regexps] of Object.entries(patterns)) {
+    const color = colors[type];
+    if (!color) continue;
+    for (const re of regexps) {
+      let m: RegExpExecArray | null;
+      re.lastIndex = 0;
+      while ((m = re.exec(line)) !== null) {
+        matches.push({ start: m.index, end: m.index + m[0].length, color });
+      }
+    }
+  }
+
+  matches.sort((a, b) => a.start - b.start);
+
+  for (const m of matches) {
+    if (m.start > lastIdx) {
+      tokens.push(<span key={tokens.length}>{line.slice(lastIdx, m.start)}</span>);
+    }
+    tokens.push(
+      <span key={tokens.length} style={{ color: m.color }}>
+        {line.slice(m.start, m.end)}
+      </span>,
+    );
+    lastIdx = m.end;
+  }
+  if (lastIdx < line.length) {
+    tokens.push(<span key={tokens.length}>{line.slice(lastIdx)}</span>);
+  }
+
+  return <>{tokens.length > 0 ? tokens : line}</>;
 }
 
 function parseInline(input: string): React.ReactNode[] {
@@ -53,7 +201,7 @@ function parseInline(input: string): React.ReactNode[] {
         <code
           key={key++}
           className="px-1.5 py-0.5 rounded text-sm font-mono"
-          style={{ background: "#3A2A1E", color: "#E8A33D" }}
+          style={{ background: "rgba(232,163,61,0.12)", color: "#E8A33D" }}
         >
           {code}
         </code>
@@ -71,7 +219,6 @@ function parseInline(input: string): React.ReactNode[] {
           onError={(e) => {
             const el = e.currentTarget;
             el.style.display = "none";
-            el.nextElementSibling?.remove();
           }}
         />
       );
@@ -84,7 +231,7 @@ function parseInline(input: string): React.ReactNode[] {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="underline decoration-dotted underline-offset-2 transition-colors"
+          className="underline decoration-dotted underline-offset-2 transition-colors hover:decoration-solid"
           style={{ color: "#E8A33D" }}
         >
           {text}
@@ -222,10 +369,10 @@ function parseTableBlock(lines: string[], startIdx: number, key: number): { node
   }
 
   const tableNode = (
-    <div key={key} className="my-3 overflow-x-auto">
+    <div key={key} className="my-3 overflow-x-auto rounded-lg" style={{ border: "1px solid #3A2A1E" }}>
       <table className="w-full text-sm border-collapse">
         <thead>
-          <tr style={{ background: "#2A1B14" }}>
+          <tr style={{ background: "#1a120e" }}>
             {headers.map((h, ci) => (
               <th
                 key={ci}
@@ -239,7 +386,7 @@ function parseTableBlock(lines: string[], startIdx: number, key: number): { node
         </thead>
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "#1A0F0A" }}>
+            <tr key={ri} style={{ background: ri % 2 === 0 ? "transparent" : "rgba(15,10,8,0.5)" }}>
               {row.map((cell, ci) => (
                 <td
                   key={ci}

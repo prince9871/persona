@@ -171,16 +171,34 @@ function Sidebar({
 
 function PourLoader() {
   return (
-    <svg viewBox="0 0 64 32" className="w-16 h-8" fill="none">
-      <path d="M4 10h9c1.5 0 2.5 1.2 2.5 2.6V16H4v-6Z" fill="#B8A38C" opacity="0.9" />
-      <path d="M15.5 12.5H20c1.2 0 2 .9 2 2s-.8 2-2 2h-3.2" stroke="#B8A38C" strokeWidth="1.6" strokeLinecap="round" />
-      <rect className="pour-stream" x="20.5" y="14" width="1.6" height="6" rx="0.8" fill="#FFB84D" />
-      <path className="steam-wisp steam-1" d="M22 12c-1.5-1.5.5-2.5 0-4" stroke="#B8A38C" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M24 20h14l-1 6c-.2 1.4-1.4 2.4-2.8 2.4h-6.4c-1.4 0-2.6-1-2.8-2.4l-1-6Z" fill="#3A2A1E" stroke="#4A3728" strokeWidth="1" />
-      <clipPath id="cupClip">
-        <path d="M25 20.8h12l-.85 5.5c-.15 1-.9 1.7-1.9 1.7h-6.5c-1 0-1.75-.7-1.9-1.7l-.85-5.5Z" />
+    <svg viewBox="0 0 60 36" className="w-14 h-8" fill="none">
+      {/* kettle body */}
+      <path d="M2 12h13c2 0 3.5 1.6 3.5 3.5V20H2v-8Z" fill="#3A2A1E" stroke="#5C4630" strokeWidth="1" />
+      <ellipse cx="8.5" cy="12" rx="6.5" ry="1.6" fill="#4A3728" />
+      {/* spout */}
+      <path d="M18.5 15.5H23c1.4 0 2.4 1 2.4 2.3s-1 2.3-2.4 2.3h-3.6" stroke="#5C4630" strokeWidth="1.6" strokeLinecap="round" />
+      {/* handle */}
+      <path d="M2 14c-1.8 0-3 1.2-3 2.8s1.2 2.8 3 2.8" stroke="#5C4630" strokeWidth="1.4" strokeLinecap="round" />
+      {/* pouring stream */}
+      <rect className="pour-stream" x="24.5" y="18" width="1.8" height="8" rx="0.9" fill="#FFB84D" />
+      {/* steam */}
+      <path className="steam-wisp steam-1" d="M26 14c-1.5-1.5.5-2.5 0-4" stroke="#B8A38C" strokeWidth="1.3" strokeLinecap="round" />
+      <path className="steam-wisp steam-2" d="M29 15c-1.5-1.5.5-2.5 0-4" stroke="#B8A38C" strokeWidth="1.1" strokeLinecap="round" opacity="0.7" />
+      {/* cup */}
+      <path d="M20 26h18l-1.2 7.2c-.25 1.5-1.6 2.6-3.1 2.6h-9.4c-1.5 0-2.85-1.1-3.1-2.6L20 26Z" fill="#241713" stroke="#5C4630" strokeWidth="1" />
+      {/* cup handle */}
+      <path d="M38 28.5h2c1.3 0 2.3 1 2.3 2.3S41.3 33 40 33h-2" stroke="#5C4630" strokeWidth="1.4" strokeLinecap="round" />
+      <clipPath id="cupClip2">
+        <path d="M20.9 27h16.2l-1 6c-.2 1.2-1.2 2-2.5 2h-9.2c-1.3 0-2.3-.8-2.5-2l-1-6Z" />
       </clipPath>
-      <rect className="cup-fill" x="24" y="20" width="14" height="8" clipPath="url(#cupClip)" fill="#FFB84D" />
+      <rect className="cup-fill" x="20" y="24" width="18" height="12" clipPath="url(#cupClip2)" fill="#FFB84D" />
+      <rect className="cup-fill" x="20" y="24" width="18" height="12" clipPath="url(#cupClip2)" fill="url(#cupShine)" opacity="0.5" />
+      <defs>
+        <linearGradient id="cupShine" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#FFDCA8" />
+          <stop offset="100%" stopColor="#FF7A45" />
+        </linearGradient>
+      </defs>
     </svg>
   );
 }
@@ -702,16 +720,17 @@ export default function Home() {
                     <div className="flex items-end gap-2 justify-start bubble-pop">
                       <Avatar persona={persona} size={28} ring={false} />
                       <div
-                        className="flex items-center gap-3 px-4 py-2.5"
+                        className="flex items-center gap-3 px-4 py-3 waiting-bubble"
                         style={{
-                          background: "linear-gradient(160deg, rgba(36,26,20,0.9), rgba(20,14,11,0.9))",
-                          border: `1px solid ${accent}22`,
+                          background: `linear-gradient(160deg, ${accent}14, rgba(20,14,11,0.92))`,
+                          border: `1px solid ${accent}33`,
                           borderRadius: "18px 18px 18px 4px",
                           backdropFilter: "blur(6px)",
+                          boxShadow: `0 2px 14px rgba(0,0,0,0.35), 0 0 20px ${t.glow}`,
                         }}
                       >
                         {persona === "hitesh" ? <PourLoader /> : <TypingDots color={accent} />}
-                        <span className="text-sm" style={{ color: "#8C7A64" }}>
+                        <span className="text-sm font-medium shimmer-text" style={{ color: "#D8C5AC" }}>
                           {persona === "hitesh" ? "Ghol raha hoon..." : "Process kar raha hoon..."}
                         </span>
                       </div>
@@ -978,7 +997,24 @@ export default function Home() {
           from { opacity: 1; transform: scale(1); }
           to { opacity: 0; transform: scale(.9); }
         }
-        .picker-card:hover { transform: translateY(-4px); }
+        .waiting-bubble { animation: waitingGlow 2.2s ease-in-out infinite; }
+        @keyframes waitingGlow {
+          0%, 100% { filter: brightness(1); }
+          50% { filter: brightness(1.15); }
+        }
+        .shimmer-text {
+          background: linear-gradient(90deg, #B8A38C 0%, #FFEFD6 50%, #B8A38C 100%);
+          background-size: 200% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: shimmerMove 1.6s linear infinite;
+          font-weight: 600;
+        }
+        @keyframes shimmerMove {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
       `}</style>
     </>
   );
